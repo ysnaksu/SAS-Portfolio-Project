@@ -1,0 +1,183 @@
+/* Generated Code (IMPORT) */
+/* Source File: traffic2 .xlsx */
+/* Source Path: /home/u64132677/sasuser.v94/STQM5900_Fall 2025_Semester */
+/* Code generated on: 12/2/25, 10:25 AM */
+
+%web_drop_table(WORK.IMPORT);
+
+
+FILENAME REFFILE '/home/u64132677/sasuser.v94/STQM5900_Fall 2025_Semester/traffic2 .xlsx';
+
+PROC IMPORT DATAFILE=REFFILE
+	DBMS=XLSX
+	OUT=WORK.IMPORT;
+	GETNAMES=YES;
+RUN;
+
+PROC CONTENTS DATA=WORK.IMPORT; 
+RUN;
+
+Part I: Data Exploration for Law Implementation Dates (i)
+ 
+
+ 
+/* Determine when 'beltlaw' and 'spdlaw' first change from 0 to 1. */
+ 
+/* NOTE: The data set reference is corrected from WORK.TRAFFIC2 to WORK.IMPORT */
+PROC SORT DATA=WORK.IMPORT OUT=SORTED_TRAFFIC;
+ 
+BY t;
+ 
+RUN;
+ 
+ 
+PROC PRINT DATA=SORTED_TRAFFIC;
+ 
+WHERE beltlaw=1 OR spdlaw=1;
+ 
+VAR year feb mar apr may jun jul aug sep oct nov dec spdlaw beltlaw;
+ 
+TITLE 'Check Dates for Speed Law and Seatbelt Law Implementation (Part i)';
+ 
+OPTIONS OBS=20; /* Print only the first few observations where laws took effect */
+ 
+RUN;
+ 
+OPTIONS OBS=MAX;
+ 
+ 
+/* Calculate the average of prcfat (Part v) */
+ 
+PROC MEANS DATA=WORK.IMPORT;
+ 
+VAR prcfat;
+ 
+TITLE 'Average of prcfat (Percentage of Fatal Accidents) (Part v)';
+ 
+RUN;
+ 
+
+ 
+Part II: Regression 1 (ii)
+ 
+
+/* Regress log(totacc) on linear time trend (t) and 11 monthly dummies. */
+ 
+/* January is the base month (feb=mar=...=dec=0). */
+ 
+PROC REG DATA=WORK.IMPORT;
+ 
+MODEL ltotacc = t feb mar apr may jun jul aug sep oct nov dec;
+ 
+/* Residuals are not saved here, as R2 output is sufficient for BP test. */
+ 
+TITLE 'Regression 1: Log(Total Accidents) on Time Trend and Monthly Dummies (January Base) (Part ii)';
+ 
+RUN;
+ 
+QUIT;
+ 
+ 
+Part III: Regression 2 (iii and iv)
+
+/* Add wkends, unem, spdlaw, and beltlaw to the model. */
+ 
+PROC REG DATA=WORK.IMPORT;
+ 
+MODEL ltotacc = t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw;
+ 
+/* Save residuals (RESID_R2) and independent variables for the Breusch-Pagan test. */
+OUTPUT OUT=RESIDUALS_R2 (KEEP=RESID_R2 t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw) 
+        R=RESID_R2 P=PRED_R2;
+ 
+TITLE 'Regression 2: Full Model for Log(Total Accidents) (Part iii and iv)';
+ 
+RUN;
+ 
+QUIT;
+ 
+ 
+
+ 
+Part IV: Regression 3 (v - prcfat Regression and AR(1) Test)
+ 
+
+/* Regress prcfat on t, monthly dummies, wkends, unem, spdlaw, and beltlaw. */
+ 
+/* Use DW option to calculate Durbin-Watson statistic for AR(1) serial correlation test. */
+ 
+PROC REG DATA=WORK.IMPORT;
+ 
+MODEL prcfat = t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw / DW;
+ 
+TITLE 'Regression 3: Percentage Fatal Accidents (prcfat) with AR(1) Test (Part v)';
+ 
+RUN;
+ 
+QUIT;
+ 
+ 
+
+ 
+Part V: Preparation for Breusch-Pagan Test (vi)
+ 
+
+ 
+/* 1. Create a dataset containing the squared residuals from Regression 2, along with all independent variables. */
+ 
+DATA BP_TEST;
+ 
+SET RESIDUALS_R2; /* This set contains the residuals and all needed predictors */
+ 
+SQUARED_RESIDUALS = RESID_R2**2;
+ 
+/* Keep only the squared residuals and the independent variables for the auxiliary regression. */
+KEEP SQUARED_RESIDUALS t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw;
+ 
+RUN;
+ 
+ 
+
+ 
+Part VI: Breusch-Pagan Test for Heteroskedasticity (vi)
+ 
+
+ 
+/* 2. Regress the squared residuals (SQUARED_RESIDUALS) on the independent variables. */
+ 
+PROC REG DATA=BP_TEST;
+ 
+MODEL SQUARED_RESIDUALS = t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw;
+ 
+TITLE 'Auxiliary Regression for Breusch-Pagan Test (Test for Heteroskedasticity) (Part vi)';
+ 
+RUN;
+ 
+QUIT;
+ 
+ 
+ 
+
+
+Part VII: Correction for AR(1) Serial Correlation (vii)
+ 
+
+ 
+/* If AR(1) is detected (from Part IV), the Prais-Winsten method (or Cochrane-Orcutt) 
+   is used via PROC AUTOREG. */
+ 
+PROC AUTOREG DATA=WORK.IMPORT;
+ 
+MODEL prcfat = t feb mar apr may jun jul aug sep oct nov dec wkends unem spdlaw beltlaw / NOPRINT NLAG=1 METHOD=ITERA;
+ 
+/* NLAG=1 specifies AR(1) correction. ITERA is for iterative Prais-Winsten. */
+ 
+TITLE 'AR(1) Serial Correlation Correction using AUTOREG (Prais-Winsten/Cochrane-Orcutt) (Part vii)';
+ 
+RUN;
+ 
+QUIT;
+
+
+%web_open_table(WORK.IMPORT);
+
